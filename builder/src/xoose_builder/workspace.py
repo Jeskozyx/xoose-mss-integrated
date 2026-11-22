@@ -15,22 +15,26 @@ from xoose_builder.exceptions import (
     PathTraversalError,
     WorkspaceCollisionError,
 )
-from xoose_builder.manifest import Manifest, ensure_path_contained, validate_slug
+from xoose_builder.manifest import Manifest, assert_no_forbidden_secrets, ensure_path_contained, validate_slug
 
 # Files and directories that should NEVER be copied to project workspace
 DEFAULT_IGNORE_NAMES: Set[str] = {
     ".git",
     ".github",
     ".gitignore",
+    ".pytest_cache",
     ".venv",
     "venv",
     "env",
     "__pycache__",
     "build",
     "dist",
+    "tests",
     ".env",
     ".env.local",
     "screenshots",
+    "identity.json",
+    "processed_commands.json",
 }
 
 DEFAULT_IGNORE_EXTENSIONS: Set[str] = {
@@ -358,8 +362,24 @@ class WorkspaceManager:
         parser["CONTENT"]["date_countdown_target"] = resolved_dates["date_countdown_target"]
         parser["CONTENT"]["tanggal_date"] = resolved_dates["tanggal_date"]
 
+        # [AGENT] section (Identitas proyek per build — TANPA shared device_token atau service_role key)
+        if "AGENT" not in parser:
+            parser["AGENT"] = {}
+        parser["AGENT"]["enabled"] = "true" if manifest.agent_enabled else "false"
+        parser["AGENT"]["api_base_url"] = manifest.agent_api_base_url
+        parser["AGENT"]["project_slug"] = manifest.agent_project_slug
+        parser["AGENT"]["enrollment_code"] = manifest.agent_enrollment_code
+        parser["AGENT"]["heartbeat_interval_seconds"] = str(manifest.agent_heartbeat_interval)
+        parser["AGENT"]["poll_interval_seconds"] = str(manifest.agent_poll_interval)
+        parser["AGENT"]["config_sync_interval_seconds"] = str(manifest.agent_config_sync_interval)
+        parser["AGENT"]["realtime_enabled"] = "true" if manifest.agent_realtime_enabled else "false"
+        parser["AGENT"]["app_version"] = manifest.agent_app_version
+
         with open(config_file, "w", encoding="utf-8") as f:
             parser.write(f)
+
+        # Audit akhir isi config.ini yang dihasilkan agar tidak pernah ada secret bocor
+        assert_no_forbidden_secrets(config_file.read_text(encoding="utf-8"), path="workspace.config.ini")
 
         # Apply content customization to frontend HTML files in workspace
         self._apply_frontend_customization(workspace_path, resolved_dates)

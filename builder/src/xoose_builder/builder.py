@@ -10,10 +10,14 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from xoose_builder.exceptions import BuilderError
-from xoose_builder.manifest import Manifest
+from xoose_builder.manifest import Manifest, assert_no_forbidden_secrets
+from xoose_builder.signer import compute_sha256
 
 SECRET_PATTERNS = [
     re.compile(r"sb_publishable_[A-Za-z0-9_-]+"),
+    re.compile(r"sb_secret_[A-Za-z0-9_-]+"),
+    re.compile(r"xly_dev_[A-Za-z0-9]+"),
+    re.compile(r"XLY-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}"),
     re.compile(r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"),
 ]
 
@@ -57,6 +61,11 @@ class BuildEngine:
         if not entry_point_file.exists():
             raise BuilderError(f"Entry point not found in workspace: {entry_point_file}", code="ENTRY_POINT_NOT_FOUND")
 
+        # Audit pra-build: pastikan tidak ada service_role key atau shared device_token di config.ini workspace
+        config_ini = self.workspace_path / "backend" / "config.ini"
+        if config_ini.exists():
+            assert_no_forbidden_secrets(config_ini.read_text(encoding="utf-8"), path="workspace.backend.config.ini")
+
         # Prepare PyInstaller command array
         cmd = [
             sys.executable,
@@ -66,6 +75,8 @@ class BuildEngine:
             "--windowed",
             "--noconfirm",
             "--clean",
+            f"--paths={self.workspace_path}",
+            f"--paths={self.workspace_path / 'backend'}",
             f"--distpath={dist_dir}",
             f"--workpath={work_dir}",
             f"--specpath={spec_dir}",
@@ -76,13 +87,16 @@ class BuildEngine:
         else:
             cmd.append("--onedir")
 
+        # Bundled resources directory (definisikan sebelum cek ikon)
+        resources_dir = self.workspace_path / "backend" / "resources"
+
         # Icon: either filename in backend/resources/ or relative path
         selected_icon = getattr(manifest, "icon_file", "heart.ico")
-        icon_path = self.workspace_path / "backend" / "resources" / selected_icon
+        icon_path = resources_dir / selected_icon
         if not icon_path.exists():
             icon_path = self.workspace_path / selected_icon
         if not icon_path.exists():
-            icon_path = self.workspace_path / "backend" / "resources" / "heart.ico"
+            icon_path = resources_dir / "heart.ico"
 
         if icon_path.exists():
             cmd.append(f"--icon={icon_path}")
@@ -93,8 +107,6 @@ class BuildEngine:
             except Exception:
                 cmd.append(f"--add-data={icon_path};resources")
 
-        # Bundled data
-        resources_dir = self.workspace_path / "backend" / "resources"
         if resources_dir.exists():
             cmd.append(f"--add-data={resources_dir};resources")
 
@@ -103,11 +115,10 @@ class BuildEngine:
             cmd.append(f"--add-data={frontend_src_dir};frontend/src")
 
         # Bundle config.ini ke root (penting untuk mode onefile agar konfigurasi terbaca)
-        config_ini = self.workspace_path / "backend" / "config.ini"
         if config_ini.exists():
             cmd.append(f"--add-data={config_ini};.")
 
-        # Hidden imports & collect-all (from verified LoveYou compile spec)
+        # Hidden imports & collect-all (termasuk modul Milestone 1 Services & Milestone 2 Agent)
         hidden_imports = [
             "webview",
             "webview.platforms.winforms",
@@ -118,6 +129,34 @@ class BuildEngine:
             "PIL",
             "PIL._webp",
             "supabase",
+            "httpx",
+            "httpcore",
+            "anyio",
+            "certifi",
+            "requests",
+            "pydantic",
+            "pydantic_core",
+            "schemas",
+            "schemas.service_schemas",
+            "services",
+            "services.base",
+            "services.manager",
+            "services.screenshot",
+            "services.tray",
+            "services.sync",
+            "services.notification",
+            "services.ui",
+            "services.game",
+            "services.custom",
+            "agent",
+            "agent.identity",
+            "agent.api_client",
+            "agent.enrollment",
+            "agent.command_executor",
+            "agent.config_sync",
+            "agent.realtime_listener",
+            "agent.updater",
+            "agent.runtime",
         ]
         for imp in hidden_imports:
             cmd.append(f"--hidden-import={imp}")
@@ -209,5 +248,6 @@ class BuildEngine:
             "exit_code": exit_code,
             "artifact_path": str(expected_exe).replace("\\", "/"),
             "artifact_dir": str(expected_exe.parent).replace("\\", "/"),
+            "sha256_checksum": compute_sha256(expected_exe),
             "log_path": str(log_file_path).replace("\\", "/"),
         }

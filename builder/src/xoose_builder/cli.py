@@ -37,6 +37,7 @@ if sys.platform == "win32":
 from xoose_builder.builder import BuildEngine
 from xoose_builder.exceptions import BuilderError
 from xoose_builder.manifest import Manifest
+from xoose_builder.signer import compute_sha256, sign_checksum_hmac
 from xoose_builder.workspace import WorkspaceManager
 
 # Setup stderr logger for diagnostics so stdout remains clean JSON
@@ -118,6 +119,28 @@ def handle_build(args):
     print_json_response(result, 0)
 
 
+def handle_sign(args):
+    """Handles 'sign' subcommand to compute SHA-256 checksum and optional HMAC-SHA256 signature."""
+    target = Path(args.file).resolve()
+    if not target.exists() or not target.is_file():
+        raise BuilderError(f"File artefak tidak ditemukan: {target}", code="ARTIFACT_NOT_FOUND")
+
+    digest = compute_sha256(target)
+    signing_key = (args.key or os.environ.get("REMOTE_RELEASE_SIGNING_KEY") or "").strip()
+    signature = sign_checksum_hmac(digest, signing_key) if signing_key else ""
+
+    print_json_response(
+        {
+            "success": True,
+            "file": str(target).replace("\\", "/"),
+            "size_bytes": target.stat().st_size,
+            "sha256_checksum": digest,
+            "signature": signature,
+        },
+        0,
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="xoose-builder",
@@ -147,6 +170,12 @@ def build_parser() -> argparse.ArgumentParser:
     build_p.add_argument("--format", choices=["onedir", "onefile"], default=None, help="Build format override")
     build_p.add_argument("--force", action="store_true", help="Force rebuild/overwrite workspace")
     build_p.set_defaults(func=handle_build)
+
+    # sign
+    sign_p = subparsers.add_parser("sign", help="Compute SHA-256 checksum and optional HMAC-SHA256 signature for a release artifact")
+    sign_p.add_argument("--file", required=True, help="Path to built executable or release package")
+    sign_p.add_argument("--key", default=None, help="Optional HMAC-SHA256 signing key (or set REMOTE_RELEASE_SIGNING_KEY)")
+    sign_p.set_defaults(func=handle_sign)
 
     return parser
 

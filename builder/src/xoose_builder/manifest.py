@@ -17,6 +17,48 @@ from xoose_builder.exceptions import (
 
 SLUG_REGEX = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 
+FORBIDDEN_SECRET_KEYS = frozenset({
+    "service_role",
+    "service_role_key",
+    "supabase_service_role_key",
+    "device_token",
+    "shared_device_token",
+    "token_hash",
+    "admin_password",
+})
+
+FORBIDDEN_SECRET_VALUE_PATTERNS = (
+    re.compile(r"sb_secret_[A-Za-z0-9_-]+", re.IGNORECASE),
+    re.compile(r"xly_dev_[A-Za-z0-9]+", re.IGNORECASE),
+    re.compile(r"service_role", re.IGNORECASE),
+)
+
+
+def assert_no_forbidden_secrets(obj: Any, path: str = "manifest") -> None:
+    """
+    Menolak keras penyisipan Supabase service_role key atau shared device token ke dalam
+    manifest build, workspace config.ini, maupun binary EXE.
+    """
+    if isinstance(obj, dict):
+        for key, value in obj.items():
+            key_lower = str(key).strip().lower()
+            if key_lower in FORBIDDEN_SECRET_KEYS or "service_role" in key_lower:
+                raise ValidationError(
+                    f"Kunci rahasia terlarang '{key}' terdeteksi pada {path}. Jangan pernah memasukkan service_role atau shared device_token ke build EXE.",
+                    code="FORBIDDEN_SECRET_IN_BUILD",
+                )
+            assert_no_forbidden_secrets(value, path=f"{path}.{key}")
+    elif isinstance(obj, list):
+        for idx, item in enumerate(obj):
+            assert_no_forbidden_secrets(item, path=f"{path}[{idx}]")
+    elif isinstance(obj, str):
+        for pattern in FORBIDDEN_SECRET_VALUE_PATTERNS:
+            if pattern.search(obj):
+                raise ValidationError(
+                    f"Nilai rahasia terlarang terdeteksi pada {path}. Jangan pernah menyematkan service_role key atau shared device token ke build EXE.",
+                    code="FORBIDDEN_SECRET_IN_BUILD",
+                )
+
 
 def validate_slug(slug: str) -> str:
     """Validate slug for safe folder naming and routing."""
@@ -90,6 +132,9 @@ class Manifest:
     def _validate(self):
         if not isinstance(self.raw_data, dict):
             raise ValidationError("Manifest root must be a JSON object", code="INVALID_SCHEMA")
+
+        # Hard security guard: tolak service_role key atau shared device token sebelum memproses build
+        assert_no_forbidden_secrets(self.raw_data)
 
         # 1. Template validation
         template = self.raw_data.get("template")
@@ -172,6 +217,35 @@ class Manifest:
                 raise PathTraversalError(f"Invalid editable file path: {f}")
             self.editable_files.append(f_str)
 
+        # 6. Optional Agent / Remote Control Plane identity (per-project, zero shared device tokens)
+        raw_agent = self.raw_data.get("agent", {})
+        if raw_agent is None:
+            raw_agent = {}
+        if not isinstance(raw_agent, dict):
+            raise ValidationError("'agent' section must be an object", code="INVALID_AGENT_CONFIG")
+
+        self.agent_enabled = bool(raw_agent.get("enabled", self.configuration.get("agent_enabled", False)))
+        self.agent_api_base_url = str(
+            raw_agent.get("api_base_url", self.configuration.get("agent_api_base_url", "http://localhost:8000"))
+        ).strip()
+        self.agent_project_slug = str(raw_agent.get("project_slug") or self.app_slug).strip()
+        self.agent_enrollment_code = str(
+            raw_agent.get("enrollment_code", self.configuration.get("agent_enrollment_code", ""))
+        ).strip()
+        self.agent_heartbeat_interval = max(
+            5, int(raw_agent.get("heartbeat_interval_seconds", self.configuration.get("agent_heartbeat_interval", 30)))
+        )
+        self.agent_poll_interval = max(
+            2, int(raw_agent.get("poll_interval_seconds", self.configuration.get("agent_poll_interval", 10)))
+        )
+        self.agent_config_sync_interval = max(
+            5, int(raw_agent.get("config_sync_interval_seconds", self.configuration.get("agent_config_sync_interval", 60)))
+        )
+        self.agent_realtime_enabled = bool(
+            raw_agent.get("realtime_enabled", self.configuration.get("agent_realtime_enabled", False))
+        )
+        self.agent_app_version = str(raw_agent.get("app_version") or self.app_version).strip()
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "template": {
@@ -190,6 +264,17 @@ class Manifest:
                 "format": self.build_format,
                 "entry_point": self.entry_point,
                 "icon": self.icon_file,
+            },
+            "agent": {
+                "enabled": self.agent_enabled,
+                "api_base_url": self.agent_api_base_url,
+                "project_slug": self.agent_project_slug,
+                "enrollment_code": self.agent_enrollment_code,
+                "heartbeat_interval_seconds": self.agent_heartbeat_interval,
+                "poll_interval_seconds": self.agent_poll_interval,
+                "config_sync_interval_seconds": self.agent_config_sync_interval,
+                "realtime_enabled": self.agent_realtime_enabled,
+                "app_version": self.agent_app_version,
             },
             "features": self.features,
             "configuration": self.configuration,
