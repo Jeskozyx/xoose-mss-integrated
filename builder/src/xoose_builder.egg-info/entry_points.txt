@@ -1,0 +1,2 @@
+[console_scripts]
+xoose-builder = xoose_builder.cli:main

