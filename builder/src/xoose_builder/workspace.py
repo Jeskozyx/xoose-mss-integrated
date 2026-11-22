@@ -5,9 +5,11 @@ Workspace management for isolated per-project application sources.
 import configparser
 import json
 import os
+import re
 import shutil
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import List, Set
+from typing import Dict, List, Optional, Set, Tuple
 
 from xoose_builder.exceptions import (
     PathTraversalError,
@@ -37,6 +39,170 @@ DEFAULT_IGNORE_EXTENSIONS: Set[str] = {
     ".pyd",
     ".exe",
 }
+
+
+DEFAULT_INVITE_TEXT = "SABTU, 5 DESEMBER 2026"
+DEFAULT_COUNTDOWN_TARGET = "2026-12-05T12:00:00Z"
+DEFAULT_TANGGAL_DATE = "2026-12-05"
+
+ID_MONTHS_TO_NUM = {
+    "januari": 1, "jan": 1, "january": 1,
+    "februari": 2, "feb": 2, "pebruari": 2, "february": 2,
+    "maret": 3, "mar": 3, "march": 3,
+    "april": 4, "apr": 4,
+    "mei": 5, "may": 5,
+    "juni": 6, "jun": 6, "june": 6,
+    "juli": 7, "jul": 7, "july": 7,
+    "agustus": 8, "agu": 8, "ags": 8, "aug": 8, "august": 8,
+    "september": 9, "sep": 9, "sept": 9,
+    "oktober": 10, "okt": 10, "oct": 10, "october": 10,
+    "november": 11, "nov": 11, "nopember": 11, "nop": 11,
+    "desember": 12, "des": 12, "dec": 12, "december": 12,
+}
+
+NUM_TO_ID_MONTH = {
+    1: "JANUARI", 2: "FEBRUARI", 3: "MARET", 4: "APRIL",
+    5: "MEI", 6: "JUNI", 7: "JULI", 8: "AGUSTUS",
+    9: "SEPTEMBER", 10: "OKTOBER", 11: "NOVEMBER", 12: "DESEMBER",
+}
+
+WEEKDAY_TO_ID = {
+    0: "SENIN", 1: "SELASA", 2: "RABU", 3: "KAMIS",
+    4: "JUMAT", 5: "SABTU", 6: "MINGGU",
+}
+
+
+def parse_date_from_text(text: str) -> Tuple[Optional[Tuple[int, int, int]], Optional[Tuple[int, int]]]:
+    """
+    Mengekstrak (year, month, day) dan opsional (hour, minute) dari teks tanggal bebas
+    (contoh: 'MINGGU, 27 DESEMBER 2026 • 20.00', '14 Februari 2027', '2026-12-25', '25/12/2026').
+    """
+    if not text:
+        return None, None
+
+    cleaned = text.strip()
+    lower = cleaned.lower()
+    ymd: Optional[Tuple[int, int, int]] = None
+
+    # 1. Pola: DD <Nama Bulan> YYYY
+    month_pattern = "|".join(sorted(ID_MONTHS_TO_NUM.keys(), key=len, reverse=True))
+    m1 = re.search(rf"\b(\d{{1,2}})\s+({month_pattern})\s+(\d{{4}})\b", lower)
+    if m1:
+        day, mon_str, year = int(m1.group(1)), m1.group(2), int(m1.group(3))
+        month = ID_MONTHS_TO_NUM.get(mon_str, 12)
+        try:
+            datetime(year, month, day)
+            ymd = (year, month, day)
+        except ValueError:
+            pass
+
+    # 2. Pola: YYYY-MM-DD atau YYYY/MM/DD
+    if not ymd:
+        m2 = re.search(r"\b(\d{4})[-/](\d{1,2})[-/](\d{1,2})\b", lower)
+        if m2:
+            year, month, day = int(m2.group(1)), int(m2.group(2)), int(m2.group(3))
+            try:
+                datetime(year, month, day)
+                ymd = (year, month, day)
+            except ValueError:
+                pass
+
+    # 3. Pola: DD-MM-YYYY atau DD/MM/YYYY
+    if not ymd:
+        m3 = re.search(r"\b(\d{1,2})[-/](\d{1,2})[-/](\d{4})\b", lower)
+        if m3:
+            day, month, year = int(m3.group(1)), int(m3.group(2)), int(m3.group(3))
+            try:
+                datetime(year, month, day)
+                ymd = (year, month, day)
+            except ValueError:
+                pass
+
+    # Ekstrak jam & menit opsional (cth: '• 19.00', 'pukul 20:30', '19:00')
+    hm: Optional[Tuple[int, int]] = None
+    # Hapus bagian tanggal terlebih dahulu agar tidak salah mendeteksi angka tanggal sebagai jam
+    remainder = lower
+    if m1:
+        remainder = lower[:m1.start()] + " " + lower[m1.end():]
+    tm = re.search(r"(?:•|pukul|jam|\b)\s*([01]?\d|2[0-3])[:\.]([0-5]\d)\b", remainder)
+    if tm:
+        hm = (int(tm.group(1)), int(tm.group(2)))
+
+    return ymd, hm
+
+
+def parse_iso_target(iso_str: str) -> Optional[datetime]:
+    """Mengurai string ISO 8601 menjadi datetime dalam zona WIB (UTC+7)."""
+    if not iso_str:
+        return None
+    s = iso_str.strip()
+    try:
+        if s.endswith("Z") or s.endswith("z"):
+            dt = datetime.fromisoformat(s[:-1] + "+00:00")
+        else:
+            dt = datetime.fromisoformat(s)
+        wib = timezone(timedelta(hours=7))
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=wib)
+        return dt.astimezone(wib)
+    except Exception:
+        return None
+
+
+def resolve_date_settings(raw_text: str, raw_target: str) -> Dict[str, str]:
+    """
+    Menyelaraskan date_invitation_text, date_countdown_target, dan tanggal_date (YYYY-MM-DD).
+    - Jika user mengubah date_invitation_text (misal 'MINGGU, 27 DESEMBER 2026'), otomatis
+      menyesuaikan countdown target & tanggal_date walaupun user tidak mengubah kolom ISO 8601.
+    - Jika user mengubah date_countdown_target sementara date_invitation_text masih default,
+      otomatis memperbarui date_invitation_text sesuai tanggal tersebut.
+    """
+    invite_text = (raw_text or "").strip() or DEFAULT_INVITE_TEXT
+    target_iso = (raw_target or "").strip() or DEFAULT_COUNTDOWN_TARGET
+
+    parsed_ymd, parsed_hm = parse_date_from_text(invite_text)
+    target_dt = parse_iso_target(target_iso)
+
+    wib = timezone(timedelta(hours=7))
+    default_ymd = (2026, 12, 5)
+
+    target_ymd = (target_dt.year, target_dt.month, target_dt.day) if target_dt else default_ymd
+    target_hm = (target_dt.hour, target_dt.minute) if target_dt else (19, 0)
+
+    if parsed_ymd:
+        # User mengkustomisasi teks tanggal, atau teks tanggal memiliki tanggal valid
+        if parsed_ymd != default_ymd and target_ymd == default_ymd:
+            # User mengubah Teks Tanggal Undangan tetapi membiarkan Target ISO di default -> ikuti Teks Tanggal!
+            final_ymd = parsed_ymd
+            final_hm = parsed_hm if parsed_hm else target_hm
+            dt_wib = datetime(final_ymd[0], final_ymd[1], final_ymd[2], final_hm[0], final_hm[1], 0, tzinfo=wib)
+            target_iso = dt_wib.isoformat()
+        elif parsed_ymd == default_ymd and target_ymd != default_ymd and invite_text.upper() == DEFAULT_INVITE_TEXT:
+            # User hanya mengubah Target ISO sementara Teks Tanggal masih default -> format otomatis Teks Tanggal!
+            final_ymd = target_ymd
+            dt_obj = datetime(final_ymd[0], final_ymd[1], final_ymd[2])
+            day_name = WEEKDAY_TO_ID[dt_obj.weekday()]
+            mon_name = NUM_TO_ID_MONTH[final_ymd[1]]
+            invite_text = f"{day_name}, {final_ymd[2]} {mon_name} {final_ymd[0]}"
+        else:
+            # Keduanya diubah: utamakan tanggal dari teks undangan untuk tanggal_date, dan sinkronkan waktu
+            final_ymd = parsed_ymd
+            if parsed_hm:
+                dt_wib = datetime(final_ymd[0], final_ymd[1], final_ymd[2], parsed_hm[0], parsed_hm[1], 0, tzinfo=wib)
+                target_iso = dt_wib.isoformat()
+            elif target_ymd != parsed_ymd:
+                dt_wib = datetime(final_ymd[0], final_ymd[1], final_ymd[2], target_hm[0], target_hm[1], 0, tzinfo=wib)
+                target_iso = dt_wib.isoformat()
+        tanggal_date = f"{final_ymd[0]:04d}-{final_ymd[1]:02d}-{final_ymd[2]:02d}"
+    else:
+        # Teks undangan bebas tanpa angka tanggal (misal: 'MALAM MINGGU SPESIAL') -> pakai tanggal dari target_iso
+        tanggal_date = f"{target_ymd[0]:04d}-{target_ymd[1]:02d}-{target_ymd[2]:02d}"
+
+    return {
+        "date_invitation_text": invite_text,
+        "date_countdown_target": target_iso,
+        "tanggal_date": tanggal_date,
+    }
 
 
 def should_ignore(path: Path) -> bool:
@@ -181,27 +347,68 @@ class WorkspaceManager:
         if "uninstall_hotkey_combo" in conf:
             parser["SECURITY"]["hotkey_combo"] = str(conf["uninstall_hotkey_combo"]).strip()
 
+        # [CONTENT] section (Kustomisasi Tanggal Ajakan Date & Countdown)
+        resolved_dates = resolve_date_settings(
+            str(conf.get("date_invitation_text", "")),
+            str(conf.get("date_countdown_target", "")),
+        )
+        if "CONTENT" not in parser:
+            parser["CONTENT"] = {}
+        parser["CONTENT"]["date_invitation_text"] = resolved_dates["date_invitation_text"]
+        parser["CONTENT"]["date_countdown_target"] = resolved_dates["date_countdown_target"]
+        parser["CONTENT"]["tanggal_date"] = resolved_dates["tanggal_date"]
+
         with open(config_file, "w", encoding="utf-8") as f:
             parser.write(f)
 
         # Apply content customization to frontend HTML files in workspace
-        self._apply_frontend_customization(workspace_path, conf)
+        self._apply_frontend_customization(workspace_path, resolved_dates)
 
-    def _apply_frontend_customization(self, workspace_path: Path, conf: dict):
-        """Update invite text and countdown target in frontend files inside workspace."""
+    def _apply_frontend_customization(self, workspace_path: Path, resolved_dates: dict):
+        """Update invite text, tanggal_date, and countdown target in frontend files inside workspace."""
+        new_text = resolved_dates["date_invitation_text"]
+        new_target = resolved_dates["date_countdown_target"]
+        new_tanggal_date = resolved_dates["tanggal_date"]
+
         invite_file = workspace_path / "frontend" / "src" / "invite.html"
-        if invite_file.exists() and "date_invitation_text" in conf:
-            new_text = str(conf["date_invitation_text"]).strip()
-            if new_text:
-                content = invite_file.read_text(encoding="utf-8")
-                # Replace date text if found
-                content = content.replace("SABTU, 5 DESEMBER 2026", new_text)
-                invite_file.write_text(content, encoding="utf-8")
+        if invite_file.exists() and new_text:
+            content = invite_file.read_text(encoding="utf-8")
+            # 1. Replace span id="inviteDateText" if present
+            content = re.sub(
+                r'(<span\s+id="inviteDateText">)(.*?)(</span>)',
+                lambda m: f"{m.group(1)}{new_text}{m.group(3)}",
+                content,
+                flags=re.DOTALL,
+            )
+            # 2. Replace CONFIG_INVITE_TEXT & CONFIG_TANGGAL_DATE in script if present
+            content = re.sub(
+                r"const\s+CONFIG_INVITE_TEXT\s*=\s*'[^']*';",
+                f"const CONFIG_INVITE_TEXT = '{new_text.replace(chr(39), chr(92) + chr(39))}';",
+                content,
+            )
+            content = re.sub(
+                r"const\s+CONFIG_TANGGAL_DATE\s*=\s*'[^']*';",
+                f"const CONFIG_TANGGAL_DATE = '{new_tanggal_date}';",
+                content,
+            )
+            # 3. Fallback direct string replace for legacy/test HTML
+            content = content.replace("SABTU, 5 DESEMBER 2026", new_text)
+            invite_file.write_text(content, encoding="utf-8")
 
         yes_file = workspace_path / "frontend" / "src" / "yes.html"
-        if yes_file.exists() and "date_countdown_target" in conf:
-            new_target = str(conf["date_countdown_target"]).strip()
+        if yes_file.exists():
+            content = yes_file.read_text(encoding="utf-8")
             if new_target:
-                content = yes_file.read_text(encoding="utf-8")
+                content = re.sub(
+                    r"const\s+TARGET\s*=\s*new\s+Date\('[^']*'\);",
+                    f"const TARGET = new Date('{new_target}');",
+                    content,
+                )
                 content = content.replace("new Date('2026-12-05T12:00:00Z')", f"new Date('{new_target}')")
-                yes_file.write_text(content, encoding="utf-8")
+            if new_text:
+                content = re.sub(
+                    r"const\s+CONFIG_INVITE_TEXT\s*=\s*'[^']*';",
+                    f"const CONFIG_INVITE_TEXT = '{new_text.replace(chr(39), chr(92) + chr(39))}';",
+                    content,
+                )
+            yes_file.write_text(content, encoding="utf-8")

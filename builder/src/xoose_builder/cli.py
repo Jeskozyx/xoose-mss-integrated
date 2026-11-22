@@ -100,6 +100,9 @@ def handle_build(args):
 
     if not workspace_path.exists() or args.force:
         workspace_path = manager.create_workspace(manifest, force=args.force)
+    else:
+        # Pastikan konfigurasi dan kustomisasi tanggal terbaru selalu diterapkan sebelum build
+        manager._apply_configuration(workspace_path, manifest)
 
     engine = BuildEngine(
         workspace_path=workspace_path,

@@ -81,6 +81,10 @@ class TestMultiProjectConfiguration(unittest.TestCase):
         self.assertEqual(config_alpha.get("STARTUP", "app_name"), "Project Alpha")
         invite_alpha = (ws_alpha / "frontend" / "src" / "invite.html").read_text(encoding="utf-8")
         self.assertIn("MINGGU, 10 JANUARI 2027", invite_alpha)
+        yes_alpha = (ws_alpha / "frontend" / "src" / "yes.html").read_text(encoding="utf-8")
+        self.assertIn("2027-01-10", yes_alpha)
+        self.assertEqual(config_alpha.get("CONTENT", "date_invitation_text"), "MINGGU, 10 JANUARI 2027")
+        self.assertEqual(config_alpha.get("CONTENT", "tanggal_date"), "2027-01-10")
 
         # 2. Verify Project Beta workspace
         config_beta = configparser.ConfigParser()
@@ -91,6 +95,10 @@ class TestMultiProjectConfiguration(unittest.TestCase):
         self.assertEqual(config_beta.get("STARTUP", "app_name"), "Project Beta")
         invite_beta = (ws_beta / "frontend" / "src" / "invite.html").read_text(encoding="utf-8")
         self.assertIn("SABTU, 14 FEBRUARI 2027", invite_beta)
+        yes_beta = (ws_beta / "frontend" / "src" / "yes.html").read_text(encoding="utf-8")
+        self.assertIn("2027-02-14", yes_beta)
+        self.assertEqual(config_beta.get("CONTENT", "date_invitation_text"), "SABTU, 14 FEBRUARI 2027")
+        self.assertEqual(config_beta.get("CONTENT", "tanggal_date"), "2027-02-14")
 
         # 3. Verify Source Template remains unchanged
         config_src = configparser.ConfigParser()
