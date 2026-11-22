@@ -86,6 +86,12 @@ class BuildEngine:
 
         if icon_path.exists():
             cmd.append(f"--icon={icon_path}")
+            # Ensure custom icon located outside resources_dir is bundled for runtime tray use
+            try:
+                if not (resources_dir.exists() and icon_path.is_relative_to(resources_dir)):
+                    cmd.append(f"--add-data={icon_path};resources")
+            except Exception:
+                cmd.append(f"--add-data={icon_path};resources")
 
         # Bundled data
         resources_dir = self.workspace_path / "backend" / "resources"

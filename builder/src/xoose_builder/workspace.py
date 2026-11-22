@@ -168,6 +168,9 @@ class WorkspaceManager:
         elif "notifications" in conf:
             parser["TRAY"]["notifications"] = "true" if conf["notifications"] else "false"
 
+        icon_val = getattr(manifest, "icon_file", None) or conf.get("icon") or "heart.ico"
+        parser["TRAY"]["icon"] = str(icon_val).strip()
+
         # [SECURITY] section
         if "SECURITY" not in parser:
             parser["SECURITY"] = {}
