@@ -1,0 +1,9 @@
+{
+  "name": "com.xoose.loveyou.host",
+  "description": "Xoose-LoveYou Native Messaging Host for Google Chrome Browser Capture",
+  "path": "{{HOST_EXECUTABLE_PATH}}",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://{{CHROME_EXTENSION_ID}}/"
+  ]
+}

@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Xoose-LoveYou Capture</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 280px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #FAFAFB;
+      color: #1A1D1F;
+      padding: 12px;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    .card {
+      background: #FFFFFF;
+      border: 1px solid #E5E7EB;
+      border-radius: 12px;
+      padding: 12px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #F1F3F5;
+      margin-bottom: 10px;
+    }
+    .title {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #F3F4F6;
+      color: #4B5563;
+    }
+    .pill.capturing { background: #ECFDF5; color: #047857; }
+    .pill.paused { background: #FFFBEB; color: #B45309; }
+    .pill.error { background: #FEF2F2; color: #B91C1C; }
+    .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    .meta {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .label { color: #6F767E; font-size: 11px; }
+    .value {
+      font-weight: 600;
+      font-size: 11.5px;
+      text-align: right;
+      max-width: 165px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px; }
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    button {
+      border: 1px solid #E5E7EB;
+      border-radius: 8px;
+      padding: 7px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s ease, opacity 0.15s ease;
+    }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-primary {
+      background: #1A1D1F;
+      color: #FFFFFF;
+      border-color: #1A1D1F;
+    }
+    .btn-primary:hover:not(:disabled) { background: #000000; }
+    .btn-secondary {
+      background: #FFFFFF;
+      color: #1A1D1F;
+    }
+    .btn-secondary:hover:not(:disabled) { background: #F3F4F6; }
+    .footer {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px solid #F1F3F5;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .link-btn {
+      background: none;
+      border: none;
+      padding: 0;
+      color: #4B5563;
+      font-size: 11px;
+      font-weight: 500;
+      text-decoration: underline;
+      cursor: pointer;
+    }
+    .link-btn:hover { color: #1A1D1F; }
+    .error-box {
+      margin-top: 8px;
+      padding: 6px 8px;
+      border-radius: 8px;
+      background: #FEF2F2;
+      color: #B91C1C;
+      font-size: 11px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <div class="title">Xoose Capture</div>
+      <span id="statusPill" class="pill"><span class="dot"></span><span id="statusText">Siaga</span></span>
+    </div>
+
+    <div class="meta">
+      <div class="row">
+        <span class="label">Domain Aktif</span>
+        <span id="domainValue" class="value mono">-</span>
+      </div>
+      <div class="row">
+        <span class="label">Mode Izin</span>
+        <span id="modeValue" class="value">Local-Start</span>
+      </div>
+      <div class="row">
+        <span class="label">Native Host</span>
+        <span id="hostValue" class="value">Menghubungkan...</span>
+      </div>
+      <div class="row">
+        <span class="label">Config / Capture</span>
+        <span id="statsValue" class="value mono">v0 · 0x</span>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button id="toggleBtn" class="btn-primary" type="button">Mulai</button>
+      <button id="stopBtn" class="btn-secondary" type="button">Hentikan</button>
+    </div>
+
+    <div id="errorBox" class="error-box"></div>
+
+    <div class="footer">
+      <button id="permBtn" class="link-btn" type="button">Izinkan Mode Otomatis</button>
+      <button id="reconnectBtn" class="link-btn" type="button">Hubungkan</button>
+    </div>
+  </div>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

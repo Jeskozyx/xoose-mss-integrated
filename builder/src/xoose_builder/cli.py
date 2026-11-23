@@ -34,6 +34,7 @@ if sys.platform == "win32":
     os.environ["PATH"] = sys_path
     os.environ["Path"] = sys_path
 
+from xoose_builder.browser_bundle import BrowserCaptureBundler
 from xoose_builder.builder import BuildEngine
 from xoose_builder.exceptions import BuilderError
 from xoose_builder.manifest import Manifest
@@ -141,6 +142,24 @@ def handle_sign(args):
     )
 
 
+def handle_bundle_browser_capture(args):
+    """Handles 'bundle-browser-capture' subcommand (Extension Chromium/Firefox + Native Host onedir)."""
+    integration_root = args.integration_root or "D:/KULIAH/KODINGAN/xoose-loveyou"
+    output_dir = args.output_dir or "D:/KULIAH/KODINGAN/xoose-loveyou/builds"
+    logs_dir = args.logs_dir or "D:/KULIAH/KODINGAN/xoose-loveyou/logs"
+
+    bundler = BrowserCaptureBundler(
+        integration_root=integration_root,
+        output_dir=output_dir,
+        logs_dir=logs_dir,
+    )
+    result = bundler.bundle(
+        bundle_id=args.bundle_id or "latest",
+        skip_pyinstaller=bool(args.skip_pyinstaller),
+    )
+    print_json_response(result, 0)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="xoose-builder",
@@ -176,6 +195,15 @@ def build_parser() -> argparse.ArgumentParser:
     sign_p.add_argument("--file", required=True, help="Path to built executable or release package")
     sign_p.add_argument("--key", default=None, help="Optional HMAC-SHA256 signing key (or set REMOTE_RELEASE_SIGNING_KEY)")
     sign_p.set_defaults(func=handle_sign)
+
+    # bundle-browser-capture
+    bc_p = subparsers.add_parser("bundle-browser-capture", help="Bundle Chromium/Firefox extensions, Native Messaging Host (PyInstaller onedir), manifests & Windows installer")
+    bc_p.add_argument("--integration-root", default=None, help="Root integration directory (default D:/KULIAH/KODINGAN/xoose-loveyou)")
+    bc_p.add_argument("--output-dir", default=None, help="Target build output directory")
+    bc_p.add_argument("--logs-dir", default=None, help="Target logs directory")
+    bc_p.add_argument("--bundle-id", default="latest", help="Unique bundle version/identifier")
+    bc_p.add_argument("--skip-pyinstaller", action="store_true", help="Bundle Python script mode without running PyInstaller")
+    bc_p.set_defaults(func=handle_bundle_browser_capture)
 
     return parser
 

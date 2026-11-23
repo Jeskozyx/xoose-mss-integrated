@@ -1,0 +1,9 @@
+{
+  "name": "com.xoose.loveyou.host",
+  "description": "Xoose-LoveYou Native Messaging Host for Mozilla Firefox Browser Capture",
+  "path": "{{HOST_EXECUTABLE_PATH}}",
+  "type": "stdio",
+  "allowed_extensions": [
+    "{{FIREFOX_ADDON_GECKO_ID}}"
+  ]
+}

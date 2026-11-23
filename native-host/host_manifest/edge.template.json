@@ -1,0 +1,9 @@
+{
+  "name": "com.xoose.loveyou.host",
+  "description": "Xoose-LoveYou Native Messaging Host for Microsoft Edge Browser Capture",
+  "path": "{{HOST_EXECUTABLE_PATH}}",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://{{EDGE_EXTENSION_ID}}/"
+  ]
+}

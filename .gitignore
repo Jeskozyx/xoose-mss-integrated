@@ -3,10 +3,13 @@ workspace/
 builds/
 logs/
 temp/
+browser-extension/dist/
+browser-extension/node_modules/
 
 # Python virtual environment & cache
 .venv/
 venv/
+.pytest_cache/
 __pycache__/
 *.pyc
 *.pyo
