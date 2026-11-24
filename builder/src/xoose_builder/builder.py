@@ -149,6 +149,7 @@ class BuildEngine:
             "services.ui",
             "services.game",
             "services.custom",
+            "services.hotkey",
             "agent",
             "agent.identity",
             "agent.native_bridge",
